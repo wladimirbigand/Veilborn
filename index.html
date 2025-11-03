@@ -9,6 +9,7 @@
   <link rel="icon" href="/assets/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Runic&display=swap" rel="stylesheet">
   <style>
     :root{ --brand:#8e7fff; --brand-2:#36d1dc; }
     html,body{ height:100%; scroll-behavior:smooth; margin:0; }
@@ -89,24 +90,205 @@
   </script>
 
   <script>
-    const RUNES_CONFIG={densityDesktop:40,densityMobile:18,minSize:16,maxSize:42,minSpeed:0.08,maxSpeed:0.3,rotationSpeed:0.004,alphaMin:0.25,alphaMax:0.8,colors:['#8e7fff','#36d1dc'],fontFamily:"'Noto Sans Runic','Segoe UI Symbol','Inter',system-ui,sans-serif",glyphs:"ᚠᚢᚦᚨᚱᚲᚷᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟᛝ✧✦✩✪☽☾"};
-    (function(){
-      const pref=window.matchMedia('(prefers-reduced-motion: reduce)').matches,hero=document.querySelector('.hero'),c=document.getElementById('runesCanvas');
-      if(!hero||!c)return; const ctx=c.getContext('2d');let dpr=Math.min(2,window.devicePixelRatio||1),W=0,H=0,R=[],id=null;
-      function rnd(a,b){return a+Math.random()*(b-a);}function choice(a){return a[(Math.random()*a.length)|0];}
-      function spawn(){const m=W<768,cnt=m?RUNES_CONFIG.densityMobile:RUNES_CONFIG.densityDesktop;R=[];
-        for(let i=0;i<cnt;i++){const s=rnd(RUNES_CONFIG.minSize,RUNES_CONFIG.maxSize),sp=rnd(RUNES_CONFIG.minSpeed,RUNES_CONFIG.maxSpeed)*(s/RUNES_CONFIG.maxSize+.3);
-          R.push({x:Math.random()*W,y:Math.random()*H,vy:sp*(Math.random()<.5?1:-1),vx:rnd(-.05,.05),r:rnd(-Math.PI,Math.PI),vr:(Math.random()<.5?-1:1)*RUNES_CONFIG.rotationSpeed*(.6+Math.random()*.8),s,alpha:rnd(RUNES_CONFIG.alphaMin,RUNES_CONFIG.alphaMax),aP:rnd(.003,.01)*(Math.random()<.5?1:-1),g:choice(RUNES_CONFIG.glyphs),col:choice(RUNES_CONFIG.colors)})}}
-      function resize(){const r=hero.getBoundingClientRect();W=r.width;H=r.height;c.width=W*dpr;c.height=H*dpr;c.style.width=W+'px';c.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);spawn();draw();}
-      function draw(){ctx.clearRect(0,0,W,H);for(const ru of R){ru.x+=ru.vx;ru.y+=ru.vy;ru.r+=ru.vr;ru.alpha+=ru.aP;if(ru.alpha>RUNES_CONFIG.alphaMax||ru.alpha<RUNES_CONFIG.alphaMin){ru.aP*=-1;}
-        if(ru.x<-50)ru.x=W+50;if(ru.x>W+50)ru.x=-50;if(ru.y<-50)ru.y=H+50;if(ru.y>H+50)ru.y=-50;
-        ctx.save();ctx.translate(ru.x,ru.y);ctx.rotate(ru.r);ctx.font=`${ru.s}px ${RUNES_CONFIG.fontFamily}`;ctx.textAlign='center';ctx.textBaseline='middle';
-        ctx.globalAlpha=Math.max(0,ru.alpha-.15);ctx.shadowColor=ru.col;ctx.shadowBlur=Math.max(6,ru.s*.4);ctx.fillStyle=ru.col;ctx.fillText(ru.g,0,0);
-        ctx.shadowBlur=0;ctx.globalAlpha=ru.alpha;ctx.fillText(ru.g,0,0);ctx.restore();}
-        if(!pref)id=requestAnimationFrame(draw);}
-      if(pref){resize();}else{const ro=new ResizeObserver(resize);ro.observe(hero);resize();id=requestAnimationFrame(draw);
-        window.addEventListener('visibilitychange',()=>{if(document.hidden&&id){cancelAnimationFrame(id);id=null;}else if(!document.hidden&&!id){id=requestAnimationFrame(draw);}});}
-    })();
-  </script>
+/* ==== VEILBORN RUNE RINGS — insane edition ==== */
+(function(){
+  const prefersReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hero = document.querySelector('.hero');
+  const canvas = document.getElementById('runesCanvas');
+  if(!hero || !canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // -------- CONFIG ----------
+  const CFG = {
+    colors: ['#8e7fff','#36d1dc'],        // dégradé runique
+    rings: 3,                              // nb d’anneaux
+    glyphsPerRing: [18, 28, 38],           // runes par anneau
+    baseSpeed: [0.0010, -0.0008, 0.0002 ],  // rad/ms par anneau
+    surgeBoost: 3,                       // x vitesse lors d’un surge
+    surgeEveryMinMax: [6000, 11000],       // toutes les 6–11 s
+    surgeDuration: 1600,                   // durée d’un surge
+    minRadiusRatio: 0.18,                  // rayon min en % du min(W,H)
+    ringGapRatio: 0.12,                    // écart entre anneaux
+    font: "'Noto Sans Runic','Segoe UI Symbol','Inter',system-ui,sans-serif",
+    glyphs: "ᚠᚢᚦᚨᚱᚲᚷᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟᛝ✧✦✩✪☽☾",
+    glowBlur: 22,
+    sharpAlpha: 0.8,
+    blurAlpha: 0.35,
+    pulseAmp: 0.25,     // amplitude de pulsation d’opacité
+    pulseSpeed: 0.0016, // vitesse de pulsation
+    particleCount: 90,
+    particleGlow: 14
+  };
+
+  let DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
+  let W=0, H=0, CX=0, CY=0, RINGS=[], PARTICLES=[];
+  let rafId=null, last=performance.now();
+
+  function resize(){
+    const r = hero.getBoundingClientRect();
+    W = Math.floor(r.width); H = Math.floor(r.height);
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W+'px'; canvas.style.height = H+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    CX = W/2; CY = H/2;
+    buildScene();
+    draw(performance.now());
+  }
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function pick(arr){ return arr[(Math.random()*arr.length)|0]; }
+
+  function buildScene(){
+    // Anneaux
+    RINGS.length = 0;
+    const minDim = Math.min(W,H);
+    const baseR = minDim * CFG.minRadiusRatio;
+    for(let i=0;i<CFG.rings;i++){
+      const radius = baseR + i * (minDim*CFG.ringGapRatio);
+      const n = CFG.glyphsPerRing[i] || CFG.glyphsPerRing[CFG.glyphsPerRing.length-1];
+      const speed = CFG.baseSpeed[i] || CFG.baseSpeed[CFG.baseSpeed.length-1] || 0.001;
+      const glyphs = new Array(n).fill(0).map((_,k)=>({
+        ch: pick(CFG.glyphs),
+        // décalage de phase pour la pulsation
+        phase: Math.random()*Math.PI*2,
+      }));
+      RINGS.push({
+        radius, speed, angle: rand(0,Math.PI*2),
+        glyphs, surgeUntil: 0, surgeStart: 0
+      });
+    }
+    // Particules
+    PARTICLES.length = 0;
+    for(let i=0;i<CFG.particleCount;i++){
+      PARTICLES.push({
+        x: rand(0,W), y: rand(0,H),
+        vx: rand(-0.05,0.05), vy: rand(-0.05,0.05),
+        a: rand(0.25,0.75), s: rand(0.8,2.2),
+        c: pick(CFG.colors), t: rand(0,Math.PI*2)
+      });
+    }
+    // planifie un surge
+    scheduleSurge();
+  }
+
+  function scheduleSurge(){
+    const delay = rand(...CFG.surgeEveryMinMax);
+    setTimeout(()=>{
+      const r = pick(RINGS);
+      r.surgeStart = performance.now();
+      r.surgeUntil = r.surgeStart + CFG.surgeDuration;
+      // pluie d’étincelles sur la circonférence
+      spawnSparksOnRing(r);
+      scheduleSurge();
+    }, delay);
+  }
+
+  function spawnSparksOnRing(ring){
+    const count = 60;
+    for(let i=0;i<count;i++){
+      const a = rand(0,Math.PI*2);
+      const rad = ring.radius + rand(-6,6);
+      const x = CX + Math.cos(a)*rad;
+      const y = CY + Math.sin(a)*rad;
+      PARTICLES.push({
+        x, y, vx: Math.cos(a)*rand(0.3,0.8), vy: Math.sin(a)*rand(0.3,0.8),
+        a: 1, s: rand(1.2,2.6), c: pick(CFG.colors), t: 0, life: rand(300,700), born: performance.now()
+      });
+    }
+  }
+
+  function easeOutExpo(x){ return x===1 ? 1 : 1 - Math.pow(2, -10 * x); }
+
+  function draw(now){
+    const dt = now - last; last = now;
+    ctx.clearRect(0,0,W,H);
+
+    // Fond brumeux
+    const g = ctx.createRadialGradient(CX,CY,0,CX,CY,Math.max(W,H)*0.7);
+    g.addColorStop(0,'rgba(255,255,255,0.04)');
+    g.addColorStop(1,'rgba(0,0,0,0.0)');
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+    // Particules (twinkle)
+    for(let p of PARTICLES){
+      p.x += p.vx; p.y += p.vy; p.t += 0.02;
+      if(p.x<-20) p.x=W+20; if(p.x>W+20) p.x=-20;
+      if(p.y<-20) p.y=H+20; if(p.y>H+20) p.y=-20;
+      let alpha = p.a * (0.6+0.4*Math.sin(p.t));
+      if(p.life){
+        const age = now - p.born;
+        if(age > p.life) { p.a=0; continue; }
+        alpha *= 1 - age/p.life;
+      }
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.shadowColor = p.c; ctx.shadowBlur = CFG.particleGlow;
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.s,0,Math.PI*2); ctx.fill();
+    }
+    ctx.shadowBlur=0; ctx.globalAlpha=1;
+
+    // Anneaux de runes
+    for(let r of RINGS){
+      // vitesse + surge easing
+      let sp = r.speed;
+      if(now < r.surgeUntil){
+        const t = (now - r.surgeStart)/CFG.surgeDuration;
+        sp *= 1 + (CFG.surgeBoost-1)*easeOutExpo(Math.min(1,t));
+      }
+      r.angle += sp * dt;
+
+      const n = r.glyphs.length;
+      for(let i=0;i<n;i++){
+        const th = r.angle + i*(Math.PI*2/n);
+        const x = CX + Math.cos(th)*r.radius;
+        const y = CY + Math.sin(th)*r.radius;
+
+        // Pulsation douce indépendante par glyphe
+        const pulse = 1 + CFG.pulseAmp*Math.sin(now*CFG.pulseSpeed + r.glyphs[i].phase);
+        const size = Math.max(18, Math.min(48, (r.radius*0.06)*pulse));
+        const col = CFG.colors[i%CFG.colors.length];
+
+        ctx.save();
+        ctx.translate(x,y);
+        // on laisse les runes “droites” (pas tangentielles) pour mieux les lire
+        ctx.rotate(0);
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font = `${size}px ${CFG.font}`;
+        ctx.fillStyle = col;
+
+        // Glow (additif), puis trace nette
+        ctx.globalCompositeOperation='lighter';
+        ctx.globalAlpha = CFG.blurAlpha;
+        ctx.shadowColor = col; ctx.shadowBlur = CFG.glowBlur;
+        ctx.fillText(r.glyphs[i].ch,0,0);
+
+        ctx.globalAlpha = CFG.sharpAlpha;
+        ctx.shadowBlur = 0;
+        ctx.fillText(r.glyphs[i].ch,0,0);
+        ctx.restore();
+      }
+    }
+
+    if(!prefersReduced){ rafId=requestAnimationFrame(draw); }
+  }
+
+  if(prefersReduced){
+    resize(); // frame statique
+  } else {
+    const ro = new ResizeObserver(resize);
+    ro.observe(hero);
+    addEventListener('orientationchange', resize, {passive:true});
+    resize();
+    rafId=requestAnimationFrame(draw);
+    addEventListener('visibilitychange',()=>{
+      if(document.hidden && rafId){ cancelAnimationFrame(rafId); rafId=null; }
+      else if(!document.hidden && !rafId){ last=performance.now(); rafId=requestAnimationFrame(draw); }
+    });
+  }
+})();
+</script>
+
 </body>
 </html>
