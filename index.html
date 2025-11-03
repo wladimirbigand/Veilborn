@@ -84,7 +84,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    const DOWNLOAD_URL="Assets/VeilBorn_V1.zip",REDIRECT_URL="merci.html",PASSWORD_HASH_HEX="e561182894f4b6daf90468eb7e75720972cb25013c89ff9bed838d955513c276";
+    const DOWNLOAD_URL="Assets/VeilBorn_V1.zip",REDIRECT_URL="/Pages/merci.html",PASSWORD_HASH_HEX="e561182894f4b6daf90468eb7e75720972cb25013c89ff9bed838d955513c276";
     function toHex(b){return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
     async function sha256Hex(s){return toHex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));}
     document.getElementById('year').textContent=new Date().getFullYear();
